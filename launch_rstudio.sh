@@ -4,18 +4,21 @@
 # Access via browser, login with Gandalf username and PASSWORD
 # Fredrik Boulund, Lauri Mesilaakso 2024
 
+set -euo pipefail
+
+VERSION="v1.1"
 PASSWORD="secret"
-IMAGE="/ceph/apps/rstudio/rocker_tidyverse-4.3.3.sif"
+IMAGE="/ceph/apps/rstudio/ctmr_rocker_tidyverse-4.3.3.sif"  # docker://rocker/tidyverse:4.3.3
 PREFIX="$HOME/.rstudio_singularity"
 
 usage()
 {
-  echo "Run RStudio server in Singularity."
+  echo "Run RStudio server in Singularity. Version $VERSION."
   echo
   echo "usage: launch_rstudio [-h] -p PORT [-P PASSWORD] [-i IMAGE]"
   echo
   echo "options:"
-  echo "-i IMAGE      RStudio Docker IMAGE to use (default: ${IMAGE}"
+  echo "-i IMAGE      RStudio Docker IMAGE to use (default: ${IMAGE})"
   echo "-P PASSWORD   Set the PASSWORD for logging into RStudio (default: ${PASSWORD})."
   echo "-p PORT       PORT used to access RStudio, required."
   echo "-h            Print this help."
@@ -52,18 +55,40 @@ if [ -z ${PORT+x} ]; then
 	 exit
 fi
 
-mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server
+mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server $PREFIX/R
+
 if [ -f $PREFIX/database.conf ]; then
-	echo "Using pre-existing database.conf"
+	echo "INFO: Using pre-existing database.conf"
 else
 	printf 'provider=sqlite\ndirectory=/var/lib/rstudio-server\n' > $PREFIX/database.conf
-	echo "Created $PREFIX/database.conf"
+	echo "INFO: Created $PREFIX/database.conf"
 fi
 
+if [ -d "$HOME/R" ]; then
+	echo "INFO: Container is masking pre-existing R package directory $HOME/R"
+fi
+
+echo "INFO: Launching RStudio in Singularity..."
+echo
+echo "  Current workdir:     $(pwd)"
+echo "  Singularity image:   $IMAGE"
+echo "  R package directory: $PREFIX/R"
+echo "  Port:                $PORT"
+echo "  User:                $USER"
+echo "  Password:            $PASSWORD"
+echo
+echo "  Access RStudio at:   http://localhost:$PORT"
+echo
+echo "  (remember to enable SSH port tunnel)"
+
 export PASSWORD
-echo "Launching RStudio image $IMAGE on PORT=$PORT with PASSWORD=$PASSWORD from $(pwd)"
+bind_rundir="$PREFIX/run:/run"
+bind_server="$PREFIX/var-lib-rstudio-server:/var/lib/rstudio-server"
+bind_database="$PREFIX/database.conf:/etc/rstudio/database.conf"
+bind_rdir="$PREFIX/R:$HOME/R"
+bind_ceph="/ceph:/ceph"
 singularity exec \
-	--bind $PREFIX/run:/run,$PREFIX/var-lib-rstudio-server:/var/lib/rstudio-server,$PREFIX/database.conf:/etc/rstudio/database.conf,/ceph:/ceph \
+	--bind $bind_rundir,$bind_server,$bind_rdir,$bind_ceph \
 	$IMAGE \
 	/usr/lib/rstudio-server/bin/rserver \
 		--server-user=$(whoami) \
