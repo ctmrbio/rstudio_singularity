@@ -6,9 +6,9 @@
 
 set -euo pipefail
 
-VERSION="v2.0"
+VERSION="v2.1"
 PASSWORD="secret"
-IMAGE="/ceph/apps/rstudio/ctmr_rocker_tidyverse-4.3.3.sif"  # docker://rocker/tidyverse:4.3.3
+IMAGE="/ceph/apps/rstudio/ctmr_rocker_tidyverse-4.3.3-2.0.sif"  # docker://rocker/tidyverse:4.3.3
 PREFIX="$HOME/.rstudio_singularity"
 
 usage()
@@ -56,7 +56,7 @@ if [ -z ${PORT+x} ]; then
 fi
 
 if [ -f "$IMAGE.md5" ]; then
-	CHECKSUM=$(cut -b1-32 | $IMAGE.md5)
+	CHECKSUM=$(cut -b1-32 $IMAGE.md5)
 	echo "INFO: Using pre-computed md5sum: $CHECKSUM"
 else
 	echo "INFO: Computing md5sum for $IMAGE ..."
