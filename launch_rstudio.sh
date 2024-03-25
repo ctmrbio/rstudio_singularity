@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-VERSION="v1.1"
+VERSION="v2.0"
 PASSWORD="secret"
 IMAGE="/ceph/apps/rstudio/ctmr_rocker_tidyverse-4.3.3.sif"  # docker://rocker/tidyverse:4.3.3
 PREFIX="$HOME/.rstudio_singularity"
@@ -55,7 +55,21 @@ if [ -z ${PORT+x} ]; then
 	 exit
 fi
 
-mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server $PREFIX/R
+if [ -f "$IMAGE.md5" ]; then
+	CHECKSUM=$(cut -b1-32 | $IMAGE.md5)
+	echo "INFO: Using pre-computed md5sum: $CHECKSUM"
+else
+	echo "INFO: Computing md5sum for $IMAGE ..."
+	CHECKSUM=$(md5sum $IMAGE | cut -b1-32)
+	echo "INFO: Checksum computed: $CHECKSUM"
+fi
+echo "INFO: Will use $PREFIX/$CHECKSUM for R package installations"
+
+if [ -d "$HOME/R" ]; then
+	echo "INFO: Container will mask existing R package directory $HOME/R"
+fi
+
+mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server $PREFIX/$CHECKSUM
 
 if [ -f $PREFIX/database.conf ]; then
 	echo "INFO: Using pre-existing database.conf"
@@ -64,15 +78,12 @@ else
 	echo "INFO: Created $PREFIX/database.conf"
 fi
 
-if [ -d "$HOME/R" ]; then
-	echo "INFO: Container is masking pre-existing R package directory $HOME/R"
-fi
 
 echo "INFO: Launching RStudio in Singularity..."
 echo
 echo "  Current workdir:     $(pwd)"
 echo "  Singularity image:   $IMAGE"
-echo "  R package directory: $PREFIX/R"
+echo "  R package directory: $PREFIX/$CHECKSUM"
 echo "  Port:                $PORT"
 echo "  User:                $USER"
 echo "  Password:            $PASSWORD"
@@ -80,12 +91,13 @@ echo
 echo "  Access RStudio at:   http://localhost:$PORT"
 echo
 echo "  (remember to enable SSH port tunnel)"
+echo
 
 export PASSWORD
 bind_rundir="$PREFIX/run:/run"
 bind_server="$PREFIX/var-lib-rstudio-server:/var/lib/rstudio-server"
 bind_database="$PREFIX/database.conf:/etc/rstudio/database.conf"
-bind_rdir="$PREFIX/R:$HOME/R"
+bind_rdir="$PREFIX/$CHECKSUM:$HOME/R"
 bind_ceph="/ceph:/ceph"
 singularity exec \
 	--bind $bind_rundir,$bind_server,$bind_rdir,$bind_ceph \
