@@ -35,3 +35,12 @@ else uses.
 The `/ceph` file system is bound at `/ceph` inside the running container. If
 you are running this on another system than CTMR Gandalf, remove this from the
 `--bind` argument to Singularity.
+
+## Custom RStudio Singularity image
+This repo contains a customized Singularity deffile `rstudio.Singularity`to
+create a new image containing additional system libraries/packages required for
+some R packages. It can be built with:
+```
+sudo singularity build ctmr_rocker_tidyverse-4.3.3-2.0.sif rstudio.Singularity
+```
+
