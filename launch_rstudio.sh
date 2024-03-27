@@ -1,15 +1,14 @@
 #!/bin/bash
 # Run RStudio server in Singularity
 # Runs on localhost:PORT
-# Access via browser, login with Gandalf username and PASSWORD
+# Access via browser, login with Linux username and PASSWORD set by script.
 # Fredrik Boulund, Lauri Mesilaakso 2024
 
 set -euo pipefail
 
-VERSION="v2.1"
+VERSION="v2.2"
 PASSWORD="secret"
 IMAGE="/ceph/apps/rstudio/ctmr_rocker_tidyverse-4.3.3-2.0.sif"  # docker://rocker/tidyverse:4.3.3
-PREFIX="$HOME/.rstudio_singularity"
 
 usage()
 {
@@ -63,13 +62,15 @@ else
 	CHECKSUM=$(md5sum $IMAGE | cut -b1-32)
 	echo "INFO: Checksum computed: $CHECKSUM"
 fi
-echo "INFO: Will use $PREFIX/$CHECKSUM for R package installations"
+
+PREFIX="$HOME/.rstudio_singularity/$CHECKSUM"
+echo "INFO: Will use $PREFIX for container"
 
 if [ -d "$HOME/R" ]; then
 	echo "INFO: Container will mask existing R package directory $HOME/R"
 fi
 
-mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server $PREFIX/$CHECKSUM
+mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server $PREFIX/R
 
 if [ -f $PREFIX/database.conf ]; then
 	echo "INFO: Using pre-existing database.conf"
@@ -83,7 +84,7 @@ echo "INFO: Launching RStudio in Singularity..."
 echo
 echo "  Current workdir:     $(pwd)"
 echo "  Singularity image:   $IMAGE"
-echo "  R package directory: $PREFIX/$CHECKSUM"
+echo "  R package directory: $PREFIX/R"
 echo "  Port:                $PORT"
 echo "  User:                $USER"
 echo "  Password:            $PASSWORD"
@@ -97,7 +98,7 @@ export PASSWORD
 bind_rundir="$PREFIX/run:/run"
 bind_server="$PREFIX/var-lib-rstudio-server:/var/lib/rstudio-server"
 bind_database="$PREFIX/database.conf:/etc/rstudio/database.conf"
-bind_rdir="$PREFIX/$CHECKSUM:$HOME/R"
+bind_rdir="$PREFIX/R:$HOME/R"
 bind_ceph="/ceph:/ceph"
 singularity exec \
 	--bind $bind_rundir,$bind_server,$bind_rdir,$bind_ceph \
