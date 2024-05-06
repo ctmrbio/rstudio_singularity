@@ -11,6 +11,7 @@ usage: launch_rstudio [-h] -p PORT [-P PASSWORD] [-i IMAGE]
 
 options:
 -i IMAGE      RStudio Docker IMAGE to use (default: /ceph/apps/rstudio/rocker_tidyverse-4.3.3.sif
+-I ID         Unique instance ID to load earlier R session.
 -P PASSWORD   Set the PASSWORD for logging into RStudio (default: secret).
 -p PORT       PORT used to access RStudio, required.
 -h            Print this help.

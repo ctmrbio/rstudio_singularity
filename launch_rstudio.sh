@@ -17,7 +17,8 @@ usage()
   echo "usage: launch_rstudio [-h] -p PORT [-P PASSWORD] [-i IMAGE]"
   echo
   echo "options:"
-  echo "-i IMAGE      RStudio Docker IMAGE to use (default: ${IMAGE})"
+  echo "-i IMAGE      RStudio Docker IMAGE to use (default: ${IMAGE})."
+  echo "-I ID         Unique instance ID to load earlier R session."
   echo "-P PASSWORD   Set the PASSWORD for logging into RStudio (default: ${PASSWORD})."
   echo "-p PORT       PORT used to access RStudio, required."
   echo "-h            Print this help."
@@ -31,19 +32,21 @@ usage()
   echo
 }
 
-while getopts "hi:P:p:" option; do
+while getopts "hi:I:P:p:" option; do
    case $option in
       h) # Show help
          usage
          exit;;
       i) # Specify Docker image
          IMAGE=${OPTARG:-IMAGE};;
+      I) # Unique instance ID
+         INSTANCE_ID=$OPTARG;;
       P) # Set PASSWORD
          PASSWORD=${OPTARG:-PASSWORD};;
       p) # Set PORT
          PORT=$OPTARG;;
      \?) # Invalid option
-		 usage
+         usage
          echo "ERROR: Invalid option!"
          exit;;
    esac
@@ -69,8 +72,28 @@ echo "INFO: Will use $PREFIX for container"
 if [ -d "$HOME/R" ]; then
 	echo "INFO: Container will mask existing R package directory $HOME/R"
 fi
+if [ -f "$HOME/.RData" ]; then
+	echo "INFO: Container will mask existing R session data at $HOME/.RData"
+fi
+if [ -f "$HOME/.Rhistory" ]; then
+	echo "INFO: Container will mask existing R history at $HOME/.Rhistory"
+fi
 
-mkdir -pv $PREFIX/run $PREFIX/var-lib-rstudio-server $PREFIX/R
+if [ -z ${INSTANCE_ID+x} ]; then
+	 INSTANCE_ID=$(echo $(tr -dc A-Za-z0-9 < /dev/urandom | head -c 6))
+	 echo "INFO: Generated unique instance ID: $INSTANCE_ID"
+	 mkdir -pv $PREFIX/$INSTANCE_ID
+	 touch $PREFIX/$INSTANCE_ID/Rhistory
+	 touch $PREFIX/$INSTANCE_ID/RData 
+else
+	 echo "INFO: Using provided instance ID: $INSTANCE_ID"
+	 if [ ! -f $PREFIX/$INSTANCE_ID/Rhistory ]; then
+		 echo "ERROR: No R session data found for instance ID: $INSTANCE_ID"
+		 exit 1
+     fi
+fi
+
+mkdir -pv $PREFIX/$INSTANCE_ID/run $PREFIX/$INSTANCE_ID/var-lib-rstudio-server $PREFIX/R
 
 if [ -f $PREFIX/database.conf ]; then
 	echo "INFO: Using pre-existing database.conf"
@@ -85,6 +108,7 @@ echo
 echo "  Current workdir:     $(pwd)"
 echo "  Singularity image:   $IMAGE"
 echo "  R package directory: $PREFIX/R"
+echo "  Unique instance ID:  $INSTANCE_ID   (use '-I $INSTANCE_ID' to resume this session)"
 echo "  Port:                $PORT"
 echo "  User:                $USER"
 echo "  Password:            $PASSWORD"
@@ -95,13 +119,15 @@ echo "  (remember to enable SSH port tunnel)"
 echo
 
 export PASSWORD
-bind_rundir="$PREFIX/run:/run"
-bind_server="$PREFIX/var-lib-rstudio-server:/var/lib/rstudio-server"
+bind_rundir="$PREFIX/$INSTANCE_ID/run:/run"
+bind_server="$PREFIX/$INSTANCE_ID/var-lib-rstudio-server:/var/lib/rstudio-server"
 bind_database="$PREFIX/database.conf:/etc/rstudio/database.conf"
+bind_rdata="$PREFIX/$INSTANCE_ID/RData:$HOME/.RData"
+bind_rhistory="$PREFIX/$INSTANCE_ID/Rhistory:$HOME/.Rhistory"
 bind_rdir="$PREFIX/R:$HOME/R"
 bind_ceph="/ceph:/ceph"
 singularity exec \
-	--bind $bind_rundir,$bind_server,$bind_rdir,$bind_ceph \
+	--bind $bind_rundir,$bind_server,$bind_rdata,$bind_rhistory,$bind_rdir,$bind_ceph \
 	$IMAGE \
 	/usr/lib/rstudio-server/bin/rserver \
 		--server-user=$(whoami) \
